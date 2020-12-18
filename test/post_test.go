@@ -40,3 +40,9 @@ func Test(t *testing.T) {
 	fmt.Println(parseInt)
 	fmt.Println(fil.String())
 }
+
+func TestRange(t *testing.T)  {
+	for i := 10; i > 0; i-- {
+		fmt.Println(i-1)
+	}
+}

@@ -11,28 +11,35 @@ import (
 	"fmt"
 	"github.com/panjf2000/ants"
 	"github.com/shopspring/decimal"
+	"sort"
 	"strconv"
 	"time"
 )
 
+func (a Datas) Len() int           { return len(a) }
+func (a Datas) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a Datas) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+
+type Datas []*model.FilFoxResponse
+
 type FilFoxScan struct {
 	url      string
-	page     int
 	total    int64
 	ch       chan []*model.FilFoxResponse
 	errPages *model.PageData
 }
 
 func NewFilFoxScan() *FilFoxScan {
+	count, _ := mysql.SharedStore().GetFilFoxCount()
 	return &FilFoxScan{
-		url: "https://filfox.info/api/v1/address/f3u5xnumgzr2h4ysnejnrket7boj3457vyh22s4wjnfhukefzgw5n6zi3kp5slufat3dpvag3eifcklb5vx2iq/transfers?pageSize=100&page=",
+		url:   "https://filfox.info/api/v1/address/f3u5xnumgzr2h4ysnejnrket7boj3457vyh22s4wjnfhukefzgw5n6zi3kp5slufat3dpvag3eifcklb5vx2iq/transfers?pageSize=100&page=",
+		total: count,
 	}
 }
 
 func (f *FilFoxScan) Start() {
 	go f.DataHandle()
-	go f.runSnapshots()
-	//f.AllDataHandle()
+	//go f.runSnapshots()
 }
 
 func (f *FilFoxScan) AllDataHandle() {
@@ -80,29 +87,35 @@ func (f *FilFoxScan) submit(i int64) func() {
 }
 
 func (f *FilFoxScan) DataHandle() {
-	data, err := f.GetData(0)
-	if err != nil {
-		return
-	}
-	if data.TotalCount > f.total {
-		//var allData []*model.FilFoxResponse
-		count := data.TotalCount - f.total
-		totalPage := (count / 100) + 1
-		for i := totalPage; i >= 0; i-- {
-			getData, err := f.GetData(i)
-			if err != nil || getData.Transfers == nil {
-				logging.Error("第 ", i, " 页获取失败!")
-				f.errPages.Page = append(f.errPages.Page, i)
-				continue
-			}
-			f.ResponseHandler(getData.Transfers)
-			//allData = append(allData, getData.Transfers...)
-			fmt.Println("第: ", i, " 页数据: ", len(getData.Transfers))
-			time.Sleep(1 * time.Second)
+	for {
+		data, err := f.GetData(0)
+		if err != nil {
+			time.Sleep(3 * time.Second)
+			continue
 		}
-		// 数据处理入库
-		//f.ResponseHandler(allData[int64(len(allData))-count:])
-		// 更新 f.total
+		if data.TotalCount > f.total {
+			var allData []*model.FilFoxResponse
+			count := data.TotalCount - f.total
+			totalPage := (count / 100) + 1
+			logging.Info("当前数据总量：", data.TotalCount, " 已加载总量：", f.total, " 还需加载总量：", count, " 需加载总页数: ", totalPage)
+			for i := totalPage; i >= 0; i-- {
+				getData, err := f.GetData(i)
+				if err != nil || getData.Transfers == nil {
+					logging.Error("第 ", i, " 页获取失败!")
+					f.errPages.Page = append(f.errPages.Page, i)
+					continue
+				}
+				allData = append(allData, getData.Transfers...)
+				fmt.Println("第: ", i, " 页数据: ", len(getData.Transfers))
+				time.Sleep(1 * time.Second)
+			}
+			sort.Sort(Datas(allData))
+			// 数据处理入库
+			f.ResponseHandler(allData[int64(len(allData))-count:])
+			// 更新 f.total
+			f.total += count
+		}
+		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -119,17 +132,18 @@ func (f *FilFoxScan) ResponseHandler(data []*model.FilFoxResponse) {
 			Type:    f.typeHandler(v.Type),
 			Value:   util.ToFil(decimal.NewFromInt(parseInt)).String(),
 		})
+		fmt.Println(v.Timestamp)
 	}
 	err := mysql.SharedStore().AddFilData(d)
 	if err != nil {
 		logging.Error("数据入库失败!")
 		return
 	}
+	fmt.Println("入库： ", len(d))
 }
 
 func (f *FilFoxScan) GetData(page int64) (data *model.Resp, err error) {
 	url := f.url + fmt.Sprint(page)
-	fmt.Println("url: ", url)
 	byte, err := http_util.Get(url)
 	if err != nil {
 		return nil, err

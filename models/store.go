@@ -6,4 +6,5 @@ type Store interface {
 	CommitTx() error
 
 	AddFilData(data []*Data) error
+	GetFilFoxCount() (count int64, err error)
 }

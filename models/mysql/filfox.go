@@ -20,3 +20,8 @@ func (s *Store) AddFilData(data []*model.Data) error {
 		strings.Join(valueStrings, ","))
 	return s.db.Exec(sql).Error
 }
+
+func (s *Store) GetFilFoxCount() (count int64, err error) {
+	err = s.db.Model(&model.Data{}).Count(&count).Error
+	return
+}
