@@ -3,6 +3,7 @@ module filfox_data
 go 1.15
 
 require (
+	github.com/360EntSecGroup-Skylar/excelize v1.4.1 // indirect
 	github.com/PuerkitoBio/purell v1.1.1-0.20180310210909-975f53781597 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/astaxie/beego v1.9.3-0.20171218111859-f16688817aa4
@@ -28,6 +29,7 @@ require (
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/swaggo/gin-swagger v1.2.0
 	github.com/swaggo/swag v1.5.1
+	github.com/tealeg/xlsx v1.0.5
 	github.com/unknwon/com v1.0.1
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/net v0.0.0-20200822124328-c89045814202 // indirect

@@ -7,4 +7,5 @@ type Store interface {
 
 	AddFilData(data []*Data) error
 	GetFilFoxCount() (count int64, err error)
+	GetFilFoxData(begin, end, height int64, msg, to, t string) (data []*Data, err error)
 }

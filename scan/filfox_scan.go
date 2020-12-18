@@ -38,7 +38,7 @@ func NewFilFoxScan() *FilFoxScan {
 }
 
 func (f *FilFoxScan) Start() {
-	go f.DataHandle()
+	//go f.DataHandle()
 	//go f.runSnapshots()
 }
 

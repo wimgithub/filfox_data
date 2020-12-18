@@ -25,3 +25,24 @@ func (s *Store) GetFilFoxCount() (count int64, err error) {
 	err = s.db.Model(&model.Data{}).Count(&count).Error
 	return
 }
+
+func (s *Store) GetFilFoxData(begin, end, height int64, msg, to, t string) (data []*model.Data, err error) {
+	table := s.db.Model(&model.Data{})
+	if begin != 0 && end != 0 {
+		table = table.Where("time BETWEEN ? AND ?", begin, end)
+	}
+	if height != 0 {
+		table = table.Where("height = ?", height)
+	}
+	if msg != "" {
+		table = table.Where("message = ?", msg)
+	}
+	if to != "" {
+		table = table.Where("fil_to = ?", to)
+	}
+	if t != "" {
+		table = table.Where("type = ?", t)
+	}
+	table.Find(&data)
+	return
+}

@@ -3,10 +3,12 @@ package v1
 import (
 	"filfox_data/pkg/app"
 	"filfox_data/pkg/e"
-	"github.com/astaxie/beego/validation"
+	"filfox_data/service/excel"
+	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/unknwon/com"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 )
 
 // @Summary Get multiple article tags
@@ -18,112 +20,40 @@ import (
 // @Router /api/v1/tags [get]
 func GetTags(c *gin.Context) {
 	appG := app.Gin{C: c}
-	_ = c.Query("name")
-	if arg := c.Query("state"); arg != "" {
-		_ = com.StrTo(arg).MustInt()
-	}
+	begin := c.Query("begin")
+	end := c.Query("end")
 
+	b1, _ := strconv.ParseInt(begin, 0, 64)
+	e2, _ := strconv.ParseInt(end, 0, 64)
+	path, err := excel.GetExcel(c, b1, e2, 0, "", "", "")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(path)
 	appG.Response(http.StatusOK, e.SUCCESS, map[string]interface{}{
 		"lists": "tags",
 		"total": "count",
 	})
 }
 
-type AddTagForm struct {
-	Name      string `form:"name" valid:"Required;MaxSize(100)"`
-	CreatedBy string `form:"created_by" valid:"Required;MaxSize(100)"`
-	State     int    `form:"state" valid:"Range(0,1)"`
-}
-
-// @Summary Add article tag
-// @Produce  json
-// @Param name body string true "Name"
-// @Param state body int false "State"
-// @Param created_by body int false "CreatedBy"
-// @Success 200 {object} app.Response
-// @Failure 500 {object} app.Response
-// @Router /api/v1/tags [post]
-func AddTag(c *gin.Context) {
-	var (
-		appG = app.Gin{C: c}
-		form AddTagForm
-	)
-
-	httpCode, errCode := app.BindAndValid(c, &form)
-	if errCode != e.SUCCESS {
-		appG.Response(httpCode, errCode, nil)
-		return
-	}
-	appG.Response(http.StatusOK, e.SUCCESS, nil)
-}
-
-type EditTagForm struct {
-	ID         int    `form:"id" valid:"Required;Min(1)"`
-	Name       string `form:"name" valid:"Required;MaxSize(100)"`
-	ModifiedBy string `form:"modified_by" valid:"Required;MaxSize(100)"`
-	State      int    `form:"state" valid:"Range(0,1)"`
-}
-
-// @Summary Update article tag
-// @Produce  json
-// @Param id path int true "ID"
-// @Param name body string true "Name"
-// @Param state body int false "State"
-// @Param modified_by body string true "ModifiedBy"
-// @Success 200 {object} app.Response
-// @Failure 500 {object} app.Response
-// @Router /api/v1/tags/{id} [put]
-func EditTag(c *gin.Context) {
-	var (
-		appG = app.Gin{C: c}
-		form = EditTagForm{ID: com.StrTo(c.Param("id")).MustInt()}
-	)
-
-	httpCode, errCode := app.BindAndValid(c, &form)
-	if errCode != e.SUCCESS {
-		appG.Response(httpCode, errCode, nil)
+// 下载文件
+func Download(c *gin.Context) {
+	appG := app.Gin{C: c}
+	fileName := c.Param("file")
+	fmt.Println(fileName)
+	if fileName == "" {
+		appG.Response(http.StatusOK, e.ERROR, nil)
 		return
 	}
 
-	appG.Response(http.StatusOK, e.SUCCESS, nil)
-}
-
-// @Summary Delete article tag
-// @Produce  json
-// @Param id path int true "ID"
-// @Success 200 {object} app.Response
-// @Failure 500 {object} app.Response
-// @Router /api/v1/tags/{id} [delete]
-func DeleteTag(c *gin.Context) {
-	appG := app.Gin{C: c}
-	valid := validation.Validation{}
-	id := com.StrTo(c.Param("id")).MustInt()
-	valid.Min(id, 1, "id").Message("ID必须大于0")
-
-	if valid.HasErrors() {
-		app.MarkErrors(valid.Errors)
-		appG.Response(http.StatusBadRequest, e.INVALID_PARAMS, nil)
+	f, err := ioutil.ReadFile("./excel/" + fileName)
+	if err != nil {
+		appG.Response(http.StatusOK, e.ERROR, nil)
+		return
 	}
 
-	appG.Response(http.StatusOK, e.SUCCESS, nil)
-}
-
-// @Summary Export article tag
-// @Produce  json
-// @Param name body string false "Name"
-// @Param state body int false "State"
-// @Success 200 {object} app.Response
-// @Failure 500 {object} app.Response
-// @Router /api/v1/tags/export [post]
-func ExportTag(c *gin.Context) {
-	appG := app.Gin{C: c}
-	_ = c.PostForm("name")
-	_ = -1
-	if arg := c.PostForm("state"); arg != "" {
-		_ = com.StrTo(arg).MustInt()
-	}
-	appG.Response(http.StatusOK, e.SUCCESS, map[string]string{
-		"export_url":      "",
-		"export_save_url": "",
-	})
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Accept-Length", fmt.Sprintf("%d", len(f)))
+	c.Writer.Write(f)
 }
