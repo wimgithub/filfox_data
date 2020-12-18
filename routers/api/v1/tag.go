@@ -29,10 +29,8 @@ func GetTags(c *gin.Context) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(path)
 	appG.Response(http.StatusOK, e.SUCCESS, map[string]interface{}{
-		"lists": "tags",
-		"total": "count",
+		"file_name": path,
 	})
 }
 

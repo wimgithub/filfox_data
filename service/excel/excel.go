@@ -49,10 +49,11 @@ func GetExcel(c *gin.Context, begin, end, height int64, msg, to, t string) (stri
 		cell = row.AddCell()                                            //cell 6
 		cell.Value = v.Type                                             // 类型
 	}
-	name := fmt.Sprint("./excel/", time.Now(), ".xlsx")
+	n := fmt.Sprint(time.Now(), ".xlsx")
+	name := fmt.Sprint("./excel/", n)
 	err = file.Save(name)
 	if err != nil {
 		return "", err
 	}
-	return name, nil
+	return n, nil
 }
