@@ -134,10 +134,13 @@ func (f *FilFoxScan) ResponseHandler(data []*model.FilFoxResponse) {
 		})
 		fmt.Println(v.Timestamp)
 	}
-	err := mysql.SharedStore().AddFilData(d)
-	if err != nil {
-		logging.Error("数据入库失败!")
-		return
+	for {
+		err := mysql.SharedStore().AddFilData(d)
+		if err != nil {
+			logging.Error("mysql insert error!", err)
+			continue
+		}
+		break
 	}
 	fmt.Println("入库： ", len(d))
 }
