@@ -60,6 +60,7 @@ func (f *FilFoxScan) AllDataHandle() {
 			}
 			sort.Sort(Datas(getData.Transfers))
 			f.ResponseHandler(getData.Transfers)
+			fmt.Println("第: ", i, " 页数据: ", len(getData.Transfers))
 			time.Sleep(1 * time.Second)
 		}
 		f.total += count
