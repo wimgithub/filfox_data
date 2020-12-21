@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	model "filfox_data/models"
 	"filfox_data/models/mysql"
-	"filfox_data/pkg/gredis"
 	"filfox_data/pkg/http_util"
 	"filfox_data/pkg/logging"
 	"filfox_data/pkg/util"
@@ -37,9 +36,7 @@ func NewFilFoxScan() *FilFoxScan {
 }
 
 func (f *FilFoxScan) Start() {
-	go f.AllDataHandle()
-	//go f.DataHandle()
-	//go f.runSnapshots()
+	go f.DataHandle()
 }
 
 func (f *FilFoxScan) AllDataHandle() {
@@ -55,13 +52,11 @@ func (f *FilFoxScan) AllDataHandle() {
 			getData, err := f.GetData(i)
 			if err != nil || getData.Transfers == nil {
 				logging.Error("第 ", i, " 页获取失败!")
-				f.errPages.Page = append(f.errPages.Page, i)
 				continue
 			}
 			sort.Sort(Datas(getData.Transfers))
 			f.ResponseHandler(getData.Transfers)
 			fmt.Println("第: ", i, " 页数据: ", len(getData.Transfers))
-			time.Sleep(1 * time.Second)
 		}
 		f.total += count
 	}
@@ -113,13 +108,21 @@ func (f *FilFoxScan) ResponseHandler(data []*model.FilFoxResponse) {
 			Type:    f.typeHandler(v.Type),
 			Value:   util.ToFil(decimal.NewFromInt(parseInt)).String(),
 		})
-		fmt.Println(v.Timestamp)
+		fmt.Println("time: ", v.Timestamp)
+		if len(d) >= 300 {
+			err := mysql.SharedStore().AddFilData(d)
+			if err != nil {
+				logging.Error("mysql insert error!", err)
+			}
+			fmt.Println(">300-入库： ", len(d))
+			d = nil
+		}
 	}
 	err := mysql.SharedStore().AddFilData(d)
 	if err != nil {
 		logging.Error("mysql insert error!", err)
 	}
-	fmt.Println("入库： ", len(d))
+	fmt.Println("<300入库： ", len(d))
 }
 
 func (f *FilFoxScan) GetData(page int64) (data *model.Resp, err error) {
@@ -142,22 +145,5 @@ func (f *FilFoxScan) typeHandler(t string) string {
 		return "矿工手续费"
 	default:
 		return t
-	}
-}
-
-func (f *FilFoxScan) runSnapshots() {
-	for {
-		select {
-		case _, ok := <-gredis.RedisSnapshot:
-			if !ok {
-				marshal, _ := json.Marshal(f.errPages)
-				logging.Info("redis json: ", string(marshal))
-				err := gredis.SharedSnapshotStore().SetJson(gredis.ErrPages, marshal)
-				if err != nil {
-					logging.Error("err pages 备份失败: ", err)
-				}
-				return
-			}
-		}
 	}
 }
