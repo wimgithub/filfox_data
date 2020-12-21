@@ -9,7 +9,6 @@ import (
 	"filfox_data/pkg/logging"
 	"filfox_data/pkg/util"
 	"fmt"
-	"github.com/panjf2000/ants"
 	"github.com/shopspring/decimal"
 	"sort"
 	"strconv"
@@ -38,51 +37,32 @@ func NewFilFoxScan() *FilFoxScan {
 }
 
 func (f *FilFoxScan) Start() {
-	go f.DataHandle()
-	go f.runSnapshots()
+	go f.AllDataHandle()
+	//go f.DataHandle()
+	//go f.runSnapshots()
 }
 
 func (f *FilFoxScan) AllDataHandle() {
-	//rand.Seed(time.Now().UnixNano())
-	pool, _ := ants.NewPool(5)
-	defer pool.Release()
-
 	data, err := f.GetData(0)
 	if err != nil {
 		return
 	}
-	f.ch = make(chan []*model.FilFoxResponse, data.TotalCount)
 	if data.TotalCount > f.total {
 		count := data.TotalCount - f.total
 		totalPage := (count / 100) + 1
-		logging.Info("总量：", count, " 总页数: ", totalPage)
+		logging.Info("当前数据总量：", data.TotalCount, " 已加载总量：", f.total, " 还需加载总量：", count, " 需加载总页数: ", totalPage)
 		for i := totalPage; i >= 0; i-- {
-			_ = pool.Submit(f.submit(i))
-		}
-	}
-	for {
-		select {
-		case data := <-f.ch:
-			f.ResponseHandler(data)
-			if len(f.ch) == 0 {
-				fmt.Println("Channel OK! ")
-				return
+			getData, err := f.GetData(i)
+			if err != nil || getData.Transfers == nil {
+				logging.Error("第 ", i, " 页获取失败!")
+				f.errPages.Page = append(f.errPages.Page, i)
+				continue
 			}
+			sort.Sort(Datas(getData.Transfers))
+			f.ResponseHandler(getData.Transfers)
+			time.Sleep(1 * time.Second)
 		}
-	}
-}
-
-func (f *FilFoxScan) submit(i int64) func() {
-	return func() {
-		fmt.Println("协程 ：", i, " 开始处理")
-		//time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
-		data, err := f.GetData(i)
-		if err != nil || data.Transfers == nil {
-			logging.Error("数据获取失败: ", i)
-			return
-		}
-		f.ch <- data.Transfers
-		fmt.Println("协程 ：", i, " 处理完成")
+		f.total += count
 	}
 }
 
@@ -134,13 +114,9 @@ func (f *FilFoxScan) ResponseHandler(data []*model.FilFoxResponse) {
 		})
 		fmt.Println(v.Timestamp)
 	}
-	for {
-		err := mysql.SharedStore().AddFilData(d)
-		if err != nil {
-			logging.Error("mysql insert error!", err)
-			continue
-		}
-		break
+	err := mysql.SharedStore().AddFilData(d)
+	if err != nil {
+		logging.Error("mysql insert error!", err)
 	}
 	fmt.Println("入库： ", len(d))
 }
